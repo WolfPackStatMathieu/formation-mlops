@@ -4,8 +4,12 @@ Main file for the API.
 import os
 from contextlib import asynccontextmanager
 from typing import List, Dict
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
+import logging
+
+logger = logging.getLogger("uvicorn.error")
+
 
 from app.utils import (
     get_model,
@@ -22,12 +26,15 @@ async def lifespan(app: FastAPI):
         app (FastAPI): The FastAPI application.
     """
     global model
-
     model_name: str = os.getenv("MLFLOW_MODEL_NAME")
     model_version: str = os.getenv("MLFLOW_MODEL_VERSION")
-    # Load the ML model
-    model = get_model(model_name, model_version)
-    yield
+    logger.debug(f"Loading model {model_name} version {model_version}")
+    try:
+        model = get_model(model_name, model_version)
+        yield
+    except Exception as e:
+        logger.error(f"Error loading model: {e}")
+        yield
 
 
 class ActivityDescriptions(BaseModel):
@@ -98,11 +105,20 @@ async def predict(
 
         Dict: Response containing NACE codes.
     """
-    query = {
-        "query": [description],
-        "k": nb_echoes_max,
-    }
-
-    predictions = model.predict(query)
-
-    return predictions[0]
+    try:
+        logger.debug(f"Received description: {description}")
+        query = {
+            "query": [description],
+            # Remove 'k' parameter
+        }
+        # Check if the model supports predict function with no params
+        if hasattr(model, "predict"):
+            predictions = model.predict(query["query"])
+            logger.debug(f"Predictions: {predictions}")
+            return {"predictions": predictions}
+        else:
+            logger.error("Model does not support predict function")
+            raise HTTPException(status_code=500, detail="Model does not support predict function")
+    except Exception as e:
+        logger.error(f"Error in prediction: {e}")
+        raise HTTPException(status_code=500, detail="Internal Server Error")
