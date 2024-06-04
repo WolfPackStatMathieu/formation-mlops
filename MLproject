@@ -3,7 +3,7 @@ name: text-classification
 entry_points:
   main:
     parameters:
-      remote_server_uri: {type: str, default: https://mlflow.lab.sspcloud.fr}
+      remote_server_uri: {type: str, default: https://user-mthomassin-mlflow.user.lab.sspcloud.fr}
       experiment_name: {type: str, default: nace-prediction}
       run_name: {type: str, default: default}
       dim: {type: int, default: 150}
